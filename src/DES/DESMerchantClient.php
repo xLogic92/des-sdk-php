@@ -1,38 +1,40 @@
 <?php
 
-namespace GXChain\Client;
+namespace GXChain\DES;
 
-use GXChain\Http\RequestCore;
-use GXChain\Http\ResponseCore;
+use GXChain\Common\Aes;
+use GXChain\Common\PrivateKey;
+use GXChain\Common\Signature;
 use GXChain\Common\Utils;
 use GXChain\Common\Validator;
-use GXChain\Common\Signature;
-use GXChain\Common\PrivateKey;
-use GXChain\Common\Aes;
-use GXChain\Config;
+use GXChain\Http\RequestCore;
+use GXChain\Http\ResponseCore;
 
-class DESMerchantClient {
+class DESMerchantClient
+{
     private $privateKey;
     private $account_id;
     private $baseURL;
     private $timeout;
 
-    public function __construct($privateKey, $accountId) {
+    public function __construct($privateKey, $accountId)
+    {
         $this->privateKey = $privateKey;
         $this->account_id = $accountId;
-        $this->baseURL = Config::BASE_URL;
+        $this->baseURL    = Config::BASE_URL;
     }
 
     /**
      * fetch product info by product id
      * @param $productId
      */
-    public function getProduct($productId) {
-        $url = $this->baseURL . "/api/product/" . $productId;
+    public function getProduct($productId)
+    {
+        $url     = $this->baseURL . "/api/product/" . $productId;
         $request = new RequestCore($url);
         $request->set_method('GET');
         $request->send_request();
-        $res = new ResponseCore($request->get_response_header(), $request->get_response_body(), $request->get_response_code());
+        $res    = new ResponseCore($request->get_response_header(), $request->get_response_body(), $request->get_response_code());
         $output = $res->body;
         return json_decode($output);
     }
@@ -42,15 +44,16 @@ class DESMerchantClient {
      * @param $params
      * @param $productId
      */
-    public function createDataExchangeRequest($params, $productId, $callback) {
+    public function createDataExchangeRequest($params, $productId, $callback)
+    {
 
-        $Signature = new Signature();
-        $Validator = new Validator();
-        $prod = $this->getProduct($productId);
-        $reqBody = array();
+        $Signature      = new Signature();
+        $Validator      = new Validator();
+        $prod           = $this->getProduct($productId);
+        $reqBody        = array();
         $filteredParams = $Validator->validate($params, $prod->product->input);
-        $bodyParam = array('params' => $filteredParams, 'timestamp' => time());
-        $expiration = time() + Config::DEFAULT_TIMEOUT;
+        $bodyParam      = array('params' => $filteredParams, 'timestamp' => time());
+        $expiration     = time() + Config::DEFAULT_TIMEOUT;
         foreach ($prod->onlineDatasources as $datasource) {
 
             $byteDataArr = array(
@@ -61,8 +64,8 @@ class DESMerchantClient {
                 'bytePercent'    => $Signature->percent($prod->des->percent),
                 'byteMemoLength' => $Signature->memoLength(strlen(md5(json_encode($bodyParam, 320)))),
                 'byteMemo'       => $Signature->memo(md5(json_encode($bodyParam, 320))),
-                'byteExpiration'       => $Signature->dateTime($expiration),
-                'byteSignatures' => [0]
+                'byteExpiration' => $Signature->dateTime($expiration),
+                'byteSignatures' => [0],
             );
 
             $byteArr = array_merge(
@@ -78,30 +81,30 @@ class DESMerchantClient {
             );
 
             $signatures = PrivateKey::fromWif($this->privateKey)->sign($byteArr);
-            $nonce = Utils::getRandCode();
+            $nonce      = Utils::getRandCode();
 
             array_push($reqBody, array(
-                'params' => Aes::encryptMessage($bodyParam, $this->privateKey, $datasource->publicKey , $nonce),
-                'nonce' => $nonce,
+                'params'        => Aes::encryptMessage($bodyParam, $this->privateKey, $datasource->publicKey, $nonce),
+                'nonce'         => $nonce,
                 'requestParams' => array(
-                    'from' => $this->account_id,
-                    'to' => $datasource->accountId,
+                    'from'         => $this->account_id,
+                    'to'           => $datasource->accountId,
                     'proxyAccount' => $prod->des->accountId,
-                    'percent' => $prod->des->percent,
-                    'amount' => array('amount' => $prod->product->price->amount, 'assetId' => $prod->product->price->assetId),
-                    'expiration' => $expiration,
-                    'memo' => md5(json_encode($bodyParam, 320)),
-                    'signatures' => [$signatures]
-                )
+                    'percent'      => $prod->des->percent,
+                    'amount'       => array('amount' => $prod->product->price->amount, 'assetId' => $prod->product->price->assetId),
+                    'expiration'   => $expiration,
+                    'memo'         => md5(json_encode($bodyParam, 320)),
+                    'signatures'   => [$signatures],
+                ),
             ));
         }
-        $url = $this->baseURL . "/api/request/create/" . $productId;
+        $url     = $this->baseURL . "/api/request/create/" . $productId;
         $request = new RequestCore($url);
         $request->set_method('POST');
         $request->add_header('Content-Type', 'application/json');
         $request->set_body(json_encode($reqBody));
         $request->send_request();
-        $res = new ResponseCore($request->get_response_header(), $request->get_response_body(), $request->get_response_code());
+        $res    = new ResponseCore($request->get_response_header(), $request->get_response_body(), $request->get_response_code());
         $output = $res->body;
         $callback(json_decode($output));
     }
@@ -111,15 +114,16 @@ class DESMerchantClient {
      * @param $requestId
      * @param $timeout
      */
-    public function getResult($requestId, $callback, $timeout = 8000) {
-        $start = time();
+    public function getResult($requestId, $callback, $timeout = 8000)
+    {
+        $start         = time();
         $this->timeout = $timeout;
         return $this->innerFetch($requestId, $start, null, $callback);
     }
 
-
-    public function innerFetch($requestId, $start, $latestResult, $callback) {
-        $url = $this->baseURL . "/api/request/$requestId";
+    public function innerFetch($requestId, $start, $latestResult, $callback)
+    {
+        $url     = $this->baseURL . "/api/request/$requestId";
         $request = new RequestCore($url);
         $request->set_method('GET');
         $request->send_request();
@@ -130,7 +134,7 @@ class DESMerchantClient {
                 return $this->decryptResult($latestResult, $callback);
             } else {
                 if (time() - $start < $this->timeout) {
-                    sleep(60 / 1000 );
+                    sleep(60 / 1000);
                     $this->innerFetch($requestId, $start, $latestResult, $callback);
                 } else {
                     return $this->decryptResult($latestResult, $callback);
@@ -138,7 +142,7 @@ class DESMerchantClient {
             }
         } else {
             if (time() - $start < $this->timeout) {
-                sleep(60 / 1000 );
+                sleep(60 / 1000);
                 $this->innerFetch($requestId, $start, $latestResult, $callback);
             } else {
                 return $this->decryptResult($latestResult, $callback);
@@ -150,7 +154,8 @@ class DESMerchantClient {
      * decrypt result before it returned
      * @param $result
      */
-    public function decryptResult($result, $callback) {
+    public function decryptResult($result, $callback)
+    {
         if ($result && $result->datasources) {
             $newArr = array();
             foreach ($result->datasources as $item) {

@@ -17,14 +17,13 @@
         "ext-gmp": "*",
         "ext-json": "*",
         "ext-openssl": "*",
-        "bitwasp/secp256k1-php": "^0.2.0",
-        "simplito/elliptic-php": "^1.0"
+        "gxchain/common-sdk-php": "v1.0.1",
+        "gxchain/http-sdk-php": "v1.0.1"
     },
     "require-dev": {
     },
     "autoload": {
-        "psr-4": {"GXChain\\": "src/GXChain"},
-        "files": ["src/GXChain/Index.php"]
+        "psr-4": {"GXChain\\DES\\": "src/DES"}
     },
     "repositories": {
     }
